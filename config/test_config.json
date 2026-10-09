@@ -2,6 +2,10 @@
   "product": "PyCubed v0.5 CubeSat Avionics",
   "station_id": "TS-EMU-01",
   "default_operator_id": "OP-TRAINING",
+  "station_verification": {
+    "policy": "once_per_calendar_day",
+    "reuse_successful_verification_for_same_day": true
+  },
   "limits": {
     "dut_3v3_min": 3.20,
     "dut_3v3_max": 3.40,

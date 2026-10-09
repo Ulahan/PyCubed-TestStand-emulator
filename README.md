@@ -5,7 +5,7 @@ Software-only NI TestStand training project based on a PyCubed v0.5 CubeSat avio
 The project separates responsibilities intentionally:
 
 - **Python emulator** simulates the DUT and the golden-reference responses.
-- **NI TestStand** owns test flow, limits, PASS/FAIL, SKIP, RETEST, station verification, cleanup, and reporting.
+- **NI TestStand** owns test flow, limits, PASS/FAIL, SKIP, RETEST, daily station verification, cleanup, and reporting.
 
 No physical hardware is required.
 
@@ -13,16 +13,17 @@ No physical hardware is required.
 
 1. Initialize emulator
 2. Capture operator ID and station ID
-3. Load / verify golden reference
-4. Set `StationVerified = True` only after reference checks pass
-5. Load DUT serial number
-6. Power-on test
-7. 3.3 V rail test
-8. Boot test
-9. IMU test
-10. Battery test
-11. Apply PASS / FAIL / SKIP / RETEST logic in TestStand
-12. Cleanup and report
+3. Check whether the station already passed verification today
+4. If needed, load / verify the golden reference
+5. Set `StationVerified = True` only after a successful verification for the current day
+6. Load DUT serial number
+7. Power-on test
+8. 3.3 V rail test
+9. Boot test
+10. IMU test
+11. Battery test
+12. Apply PASS / FAIL / SKIP / RETEST logic in TestStand
+13. Cleanup and report
 
 ## Emulator modes
 
@@ -50,9 +51,9 @@ Reference modes:
 emulator/   Python DUT/reference emulator
 config/     Test and emulator configuration
 scripts/    Windows helper scripts
- teststand/  Notes for the future .seq implementation
- docs/       Architecture and flow documentation
- tests/      Python unit tests
+teststand/  Notes for the future .seq implementation
+docs/       Architecture and flow documentation
+tests/      Python unit tests
 ```
 
 ## Current status

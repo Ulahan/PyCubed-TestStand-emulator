@@ -6,18 +6,33 @@ SETUP
   +--> Initialize Emulator
   +--> Get Operator ID
   +--> Get Station ID
-  +--> Load Golden Reference
-  +--> Verify Reference Power
-  +--> Verify Reference 3.3 V
-  +--> Verify Reference Boot
-  +--> Verify Reference Sensor
+  +--> Read Last Station Verification
   |
-  +--> Reference PASS ?
-          | YES
-          v
-     StationVerified = True
+  +--> Successful verification already completed today?
           |
-          v
+          +--> YES --> StationVerified = True
+          |              |
+          |              v
+          |            MAIN
+          |
+          +--> NO --> Load Golden Reference
+                       +--> Verify Reference Power
+                       +--> Verify Reference 3.3 V
+                       +--> Verify Reference Boot
+                       +--> Verify Reference Sensor
+                       |
+                       +--> Reference PASS ?
+                               |
+                               +--> YES
+                               |     +--> Save today's successful verification
+                               |     +--> StationVerified = True
+                               |     +--> MAIN
+                               |
+                               +--> NO
+                                     +--> StationVerified = False
+                                     +--> Block DUT testing
+                                     +--> CLEANUP
+
 MAIN
   |
   +--> Get DUT Serial Number
@@ -35,9 +50,9 @@ MAIN
   v
 CLEANUP
   +--> Power Off
-  +--> Unload Golden Reference
+  +--> Unload Golden Reference if loaded
   +--> Emulator Cleanup
   +--> Report
 ```
 
-If golden-reference verification fails, `StationVerified` remains false and DUT testing must not proceed.
+The successful station-verification result must persist between DUT runs so the golden reference is not repeated for every unit on the same calendar day.
