@@ -6,3 +6,6 @@ venv/
 .env
 *.log
 .DS_Store
+
+# Runtime test result files are local data, not source code.
+test_data/*/
