@@ -1,12 +1,11 @@
 """Persistent storage for PyCubed TestStand test results.
 
-Results are grouped by calendar date. Each DUT/station pair gets one JSON
-file per day:
+All runtime result files are stored in one directory:
 
-    test_data/YYYY-MM-DD/<SERIAL>_<STATION>.json
+    test_data/<SERIAL>_<STATION>_<YYYYMMDD>_<HHMMSS>_<MICROSECONDS>.json
 
-Repeated tests of the same serial number on the same station and date are
-appended to the file as separate runs.
+Each completed test run gets its own file. Repeated tests of the same DUT are
+therefore preserved as separate files and can be ordered by timestamp.
 """
 
 from __future__ import annotations
@@ -31,31 +30,23 @@ def save_test_run(
     station_verification_date: str | None = None,
     data_dir: str | Path | None = None,
 ) -> str:
-    """Append one completed test run and return the JSON file path."""
+    """Save one completed test run and return the JSON file path."""
 
     now = datetime.now().astimezone()
-    test_date = now.date().isoformat()
     root = Path(data_dir) if data_dir is not None else DEFAULT_DATA_DIR
-    day_dir = root / test_date
-    day_dir.mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True)
 
     serial = _safe_name(serial_number)
     station = _safe_name(station_id)
-    file_path = day_dir / f"{serial}_{station}.json"
+    timestamp_for_name = now.strftime("%Y%m%d_%H%M%S_%f")
+    file_path = root / f"{serial}_{station}_{timestamp_for_name}.json"
 
-    if file_path.exists():
-        document = json.loads(file_path.read_text(encoding="utf-8"))
-    else:
-        document = {
-            "date": test_date,
-            "serial_number": serial_number,
-            "station_id": station_id,
-            "runs": [],
-        }
-
-    run = {
-        "run_id": now.strftime("%Y%m%dT%H%M%S%f"),
-        "timestamp": now.isoformat(timespec="seconds"),
+    document = {
+        "serial_number": serial_number,
+        "station_id": station_id,
+        "test_date": now.date().isoformat(),
+        "test_time": now.strftime("%H:%M:%S"),
+        "timestamp": now.isoformat(timespec="microseconds"),
         "operator_id": operator_id,
         "station_verified": bool(station_verified),
         "station_verification_date": station_verification_date,
@@ -63,7 +54,6 @@ def save_test_run(
         "steps": list(steps),
     }
 
-    document["runs"].append(run)
     _write_json_atomic(file_path, document)
     return str(file_path)
 

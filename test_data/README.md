@@ -1,26 +1,23 @@
 # Test Data
 
-This directory is the runtime root for local test-result files.
+All runtime test-result files are stored directly in this directory.
 
-The application creates one date directory automatically:
-
-```text
-YYYY-MM-DD/
-```
-
-Inside it, each DUT/station pair is stored as:
+One completed test run creates one JSON file:
 
 ```text
-<SERIAL_NUMBER>_<STATION_ID>.json
+<SERIAL_NUMBER>_<STATION_ID>_<YYYYMMDD>_<HHMMSS>_<MICROSECONDS>.json
 ```
 
 Example:
 
 ```text
-2026-10-09/PC05-00124_TS-EMU-01.json
+PC05-00124_TS-EMU-01_20261009_115300_123456.json
 ```
 
-Repeated tests of the same DUT on the same station and date are appended as
-separate entries in the file's `runs` array.
+If the same DUT is tested again, another file is created with a different
+timestamp. Existing result files are not overwritten.
 
-Generated date folders are excluded from Git.
+This allows repeated tests to be identified and ordered directly by time
+without creating date subfolders.
+
+Generated JSON files are excluded from Git.

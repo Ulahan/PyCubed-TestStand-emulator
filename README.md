@@ -6,7 +6,7 @@ The project separates responsibilities intentionally:
 
 - **Python emulator** simulates the DUT and the golden-reference responses.
 - **NI TestStand** owns test flow, limits, PASS/FAIL, SKIP, RETEST, daily station verification, cleanup, reporting, and collection of test results.
-- **Test data storage** keeps traceable per-unit test history by date, serial number, and station.
+- **Test data storage** keeps one timestamped result file for every completed test run.
 
 No physical hardware is required.
 
@@ -29,17 +29,27 @@ No physical hardware is required.
 
 ## Test data
 
-Runtime test records are grouped by date:
+All runtime test records are stored in one directory:
 
 ```text
 test_data/
-└── YYYY-MM-DD/
-    └── <SERIAL_NUMBER>_<STATION_ID>.json
+├── PC05-00124_TS-EMU-01_20261009_115300_123456.json
+├── PC05-00124_TS-EMU-01_20261009_142700_654321.json
+└── PC05-00125_TS-EMU-01_20261009_143105_101010.json
 ```
 
-The same file keeps multiple runs when a unit is retested on the same station
-during the same day. Each executed step records its status, measured value,
-unit, limits, and attempt number.
+Filename format:
+
+```text
+<SERIAL_NUMBER>_<STATION_ID>_<YYYYMMDD>_<HHMMSS>_<MICROSECONDS>.json
+```
+
+Every test run creates a separate file. If the same unit is tested multiple
+times, its history is visible directly from the timestamps. No date subfolders
+are created.
+
+Each executed step records its status, measured value, unit, limits, and
+attempt number.
 
 ## Emulator modes
 
@@ -70,11 +80,11 @@ scripts/    Windows helper scripts
 teststand/  Notes for the future .seq implementation
 docs/       Architecture, flow, and data-format documentation
 tests/      Python unit tests
-test_data/  Runtime test-data root
+test_data/  Single runtime folder for timestamped test-result files
 ```
 
 ## Current status
 
-The emulator scaffold and local JSON test-data storage are ready for
-integration. The TestStand sequence will be created during the NI TestStand
-trial after the software-only side is prepared and verified.
+The emulator scaffold and timestamped local JSON test-data storage are ready
+for integration. The TestStand sequence will be created during the NI
+TestStand trial after the software-only side is prepared and verified.
