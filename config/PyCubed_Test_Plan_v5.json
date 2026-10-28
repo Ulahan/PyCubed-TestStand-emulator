@@ -1,0 +1,587 @@
+{
+  "project": {
+    "name": "PyCubed v0.5 TestStand Emulator",
+    "purpose": "Software-only automated manufacturing test architecture for PyCubed v0.5 before NI TestStand implementation",
+    "orchestrator": "NI TestStand",
+    "emulator": "Python",
+    "result_format": "JSON"
+  },
+  "operator_traceability": {
+    "operator_id_required_for_every_dut": true,
+    "method": "Scan badge or enter operator ID",
+    "reuse_previous_operator_id": false,
+    "operator_change_invalidates_station_verification": false
+  },
+  "station_verification": {
+    "method": "Golden Reference",
+    "valid_for_hours": 12,
+    "requires_same_boot_session": true,
+    "required_after": [
+      "No valid verification exists",
+      "Station/PC reboot",
+      "12 hours since last successful verification"
+    ],
+    "maintenance_or_suspected_station_fault": "Reboot station; next DUT requires Golden Reference",
+    "on_reference_fail": "Block DUT testing and go to Cleanup"
+  },
+  "fixture": {
+    "capabilities": [
+      "Programmable DC supply for VBATT",
+      "Independent voltage/current measurement",
+      "Current limiting",
+      "SWD programmer/debug connection",
+      "USB/serial connection to DUT",
+      "Programmable electronic load",
+      "Manual rotating fixture with fixed 0° and 45° positions"
+    ]
+  },
+  "test_sequence": [
+    {
+      "order": 1,
+      "name": "Safe Power-Up / Overcurrent",
+      "status": "defined",
+      "actions": [
+        "Set VBATT and safety current limit",
+        "Power DUT from fixture",
+        "Measure actual input voltage/current",
+        "Check PSU current-limit status"
+      ],
+      "fail_if": "Fixture enters current limit",
+      "on_fail": "Immediate power OFF, DUT FAIL, skip dependent tests, Cleanup",
+      "simulation_values": {
+        "vbatt_nominal_v": 7.4,
+        "idle_current_ma_example": 30,
+        "safety_current_limit_ma_example": 250
+      },
+      "note": "Current values are simulation/examples, not official PyCubed production limits."
+    },
+    {
+      "order": 2,
+      "name": "3.3 V Rail Verification",
+      "status": "defined",
+      "nominal_v": 3.3,
+      "project_simulation_limits_v": {
+        "min": 3.2,
+        "max": 3.4
+      },
+      "measurement": "Fixture DMM/DAQ measures 3.3 V rail to GND",
+      "on_fail": "DUT FAIL, skip programming/functional tests, power OFF, Cleanup",
+      "note": "3.20–3.40 V is a project/simulation range, not an official PyCubed production limit."
+    },
+    {
+      "order": 3,
+      "name": "MCU Detection / SWD",
+      "status": "defined",
+      "device": "ATSAMD51J19A",
+      "actions": [
+        "Connect via SWD",
+        "Read/confirm MCU identity"
+      ],
+      "on_fail": "DUT FAIL and Cleanup"
+    },
+    {
+      "order": 4,
+      "name": "Internal Flash / Software Verification",
+      "status": "defined",
+      "actions": [
+        "Read bootloader presence/version",
+        "Compare with latest manufacturer-provided version approved for the station",
+        "Read firmware version",
+        "Compare with latest manufacturer-provided version approved for the station",
+        "Verify image checksum/hash",
+        "If missing/outdated, program approved package and verify again",
+        "Reset DUT and verify firmware handshake"
+      ],
+      "runtime_internet_update": false
+    },
+    {
+      "order": 5,
+      "name": "MRAM Read/Write Verification",
+      "status": "defined",
+      "device": "MR25H40",
+      "actions": [
+        "Write known pattern",
+        "Read back",
+        "Compare",
+        "Clear/initialize tested area"
+      ],
+      "format_like_filesystem": false
+    },
+    {
+      "order": 6,
+      "name": "microSD Verification / Provisioning",
+      "status": "defined",
+      "new_board": [
+        "Detect card",
+        "Check capacity/filesystem",
+        "Format FAT32",
+        "Mount",
+        "Create test file",
+        "Write/read/compare",
+        "Delete test file"
+      ],
+      "retest_or_service": [
+        "Do not auto-format",
+        "Use non-destructive read/write/readback test"
+      ]
+    },
+    {
+      "order": 7,
+      "name": "BMX160 IMU Functional Test",
+      "status": "defined",
+      "positions": {
+        "position_1": "0°",
+        "position_2": "45°"
+      },
+      "actions": [
+        "Initialize IMU and confirm device ID",
+        "Read accelerometer, gyroscope and magnetometer",
+        "At 0° record stationary values",
+        "Prompt operator to rotate fixture to 45°",
+        "Verify expected accelerometer gravity redistribution",
+        "During rotation verify expected gyro axis changes",
+        "After stop verify gyro returns near stationary",
+        "Verify magnetometer communication/data validity"
+      ],
+      "gyro_exact_rate_required": false,
+      "retest": {
+        "allowed": true,
+        "max_attempts": 2,
+        "reason": "Transient communication/data-validity issue"
+      }
+    },
+    {
+      "order": 8,
+      "name": "ADM1176 Multi-Point Current Measurement",
+      "status": "defined",
+      "sense_resistor_ohm": 0.1,
+      "points": [
+        {
+          "target_total_ma": 125,
+          "expected_vsense_mv": 12.5,
+          "datasheet_accuracy_percent_0_to_70C": 5.7
+        },
+        {
+          "target_total_ma": 250,
+          "expected_vsense_mv": 25,
+          "datasheet_accuracy_percent_0_to_70C": 2.8
+        },
+        {
+          "target_total_ma": 500,
+          "expected_vsense_mv": 50,
+          "datasheet_accuracy_percent_0_to_70C": 1.8
+        }
+      ],
+      "procedure": [
+        "Adjust electronic load until independent fixture measurement reaches target TOTAL current",
+        "Take several ADM1176 readings after stabilization",
+        "Average readings",
+        "Compare ADM1176 current to independently measured fixture current",
+        "Calculate percentage error"
+      ],
+      "important": [
+        "125/250/500 mA are total current through R8, not electronic-load setpoints",
+        "Final production limits must include ADM1176 accuracy, R8 tolerance, and fixture measurement uncertainty"
+      ]
+    },
+    {
+      "order": 9,
+      "name": "External Watchdog Recovery Test",
+      "status": "defined",
+      "device": "MAX706R family external supervisory/watchdog circuit",
+      "purpose": "Verify that loss of the MCU watchdog heartbeat causes the expected hardware watchdog event and that the DUT recovers.",
+      "datasheet_limits": {
+        "watchdog_timeout_s": {
+          "min": 1,
+          "typical": 1.6,
+          "max": 2.25,
+          "source": "Analog Devices MAX706P/R/S/T datasheet",
+          "limit_type": "component_datasheet"
+        },
+        "reset_time_delay_ms": {
+          "typical": 200,
+          "usage": "Diagnostic/reference timing; not used as the primary watchdog timeout PASS/FAIL criterion."
+        }
+      },
+      "procedure": [
+        "Confirm DUT firmware is running and communication is active.",
+        "Confirm watchdog heartbeat is active.",
+        "Record the pre-test boot/reset state if available.",
+        "Command the test firmware to stop toggling the watchdog input.",
+        "Start an independent fixture/TestStand timer.",
+        "Detect the watchdog event / MCU reset independently of the DUT command path.",
+        "Measure elapsed time from heartbeat stop to watchdog-triggered reset.",
+        "Wait for DUT reboot.",
+        "Re-establish communication with the DUT.",
+        "Confirm the boot/reset state changed if a reset counter or reset-cause register is available."
+      ],
+      "pass_fail_logic": {
+        "pass_if": [
+          "Watchdog-triggered reset/event is detected.",
+          "Measured watchdog timeout is between 1.00 s and 2.25 s.",
+          "DUT reboots and communication is restored."
+        ],
+        "fail_if": [
+          "No watchdog reset/event occurs.",
+          "Watchdog event occurs before 1.00 s or after 2.25 s.",
+          "DUT does not recover communication after reset."
+        ]
+      },
+      "logging": [
+        "heartbeat_stop_timestamp",
+        "watchdog_event_timestamp",
+        "measured_watchdog_timeout_s",
+        "communication_restored",
+        "reset_cause_or_boot_counter_if_available",
+        "status"
+      ],
+      "notes": [
+        "1.6 s is the typical timeout; the datasheet acceptance window is 1.00–2.25 s.",
+        "The ~200 ms reset delay is a separate supervisory timing parameter and should not be confused with the watchdog timeout.",
+        "Final board-level implementation must confirm the exact MAX706 variant and how its watchdog output is wired into the PyCubed reset path."
+      ]
+    },
+    {
+      "order": 10,
+      "name": "USB Data & USB Power Test",
+      "status": "defined",
+      "purpose": "Verify both USB data communication and operation of the board from USB power.",
+      "subtests": [
+        {
+          "name": "USB Data Communication",
+          "power_configuration": {
+            "dut_power_source": "Fixture VBATT",
+            "usb_used_for": "Data",
+            "usb_power_path": "Disabled or isolated during this subtest where fixture design permits"
+          },
+          "procedure": [
+            "Power DUT from fixture VBATT.",
+            "Connect USB data path.",
+            "Verify USB enumeration on the station PC.",
+            "Verify expected USB device/interface identity.",
+            "Open the communication interface.",
+            "Send TEST_PING.",
+            "Verify TEST_PONG.",
+            "Send a known data block.",
+            "Read/echo the returned block.",
+            "Compare byte-for-byte."
+          ],
+          "pass_if": [
+            "USB enumerates correctly.",
+            "Expected command/response communication succeeds.",
+            "Data block comparison succeeds."
+          ],
+          "retest": {
+            "allowed": true,
+            "max_attempts": 2,
+            "reason": "One reconnect/re-enumeration retry is allowed for a transient issue."
+          }
+        },
+        {
+          "name": "USB Power Operation",
+          "power_configuration": {
+            "fixture_vbatt": "OFF",
+            "usb_power_path": "Enabled",
+            "usb_charging_path": "Handled separately in the charger test block"
+          },
+          "procedure": [
+            "Turn fixture VBATT source OFF.",
+            "Enable the board USB power path/jumper configuration.",
+            "Connect USB-C power/data.",
+            "Verify the board powers up from USB.",
+            "Measure the 3.3 V rail.",
+            "Verify USB enumeration.",
+            "Send TEST_PING and verify TEST_PONG.",
+            "Perform a small data-transfer/loopback check."
+          ],
+          "pass_if": [
+            "Board powers from USB with fixture VBATT OFF.",
+            "3.3 V rail is within the project-approved test limit.",
+            "USB enumerates correctly.",
+            "USB command/response and data transfer succeed."
+          ],
+          "on_fail": "Mark USB Power subtest FAIL and return all power paths to a safe state."
+        }
+      ],
+      "safety_and_design_notes": [
+        "The fixture must control VBATT and USB power paths to avoid unintended back-powering.",
+        "USB board-power verification and USB battery charging are different tests.",
+        "Exact jumper/switch implementation will be finalized with the physical fixture design."
+      ],
+      "logging": [
+        "usb_data_enumeration_status",
+        "usb_device_identity",
+        "usb_ping_pong_status",
+        "usb_data_loopback_status",
+        "usb_power_boot_status",
+        "usb_power_3v3_measured_v",
+        "usb_power_enumeration_status",
+        "status"
+      ]
+    },
+    {
+      "order": 11,
+      "name": "ADM1176 VBATT Voltage Measurement",
+      "status": "defined",
+      "purpose": "Verify that the ADM1176 voltage measurement tracks the actual VBATT voltage at nominal and fully charged 2S battery conditions.",
+      "adc_configuration": {
+        "voltage_range": "High range",
+        "full_scale_v": 26.35,
+        "adc_bits": 12,
+        "conversion_formula": "voltage_v = (26.35 / 4096) * adc_code"
+      },
+      "test_points": [
+        {
+          "target_fixture_v": 7.4,
+          "rationale": "Nominal 2S Li-Ion operating point used by this project."
+        },
+        {
+          "target_fixture_v": 8.4,
+          "rationale": "Upper fully charged 2S Li-Ion point / PyCubed charger float-voltage condition."
+        }
+      ],
+      "procedure": [
+        "Set fixture VBATT source to the target voltage.",
+        "Measure the actual VBATT voltage with the independent fixture DMM/DAQ.",
+        "Command/read the ADM1176 voltage conversion.",
+        "Convert the ADM1176 ADC code to voltage.",
+        "Compare ADM1176 measured voltage to the actual fixture DMM/DAQ voltage.",
+        "Calculate absolute voltage error and percentage error.",
+        "Repeat for both 7.4 V and 8.4 V test points."
+      ],
+      "project_limit": {
+        "comparison_reference": "Actual fixture DMM/DAQ voltage",
+        "maximum_absolute_error_percent": 5,
+        "limit_type": "project_simulation",
+        "note": "This is a temporary project/simulation PASS/FAIL limit, not an official PyCubed manufacturing limit."
+      },
+      "pass_fail_logic": {
+        "pass_if": "Absolute percentage error is <= 5.0% at both test points.",
+        "fail_if": "Absolute percentage error is > 5.0% at either test point."
+      },
+      "logging": [
+        "target_fixture_voltage_v",
+        "actual_fixture_voltage_v",
+        "adm1176_adc_code",
+        "adm1176_voltage_v",
+        "absolute_error_v",
+        "absolute_error_percent",
+        "status"
+      ],
+      "notes": [
+        "The PASS/FAIL comparison uses actual fixture DMM/DAQ voltage, not only the programmed supply setpoint.",
+        "The 7.4 V point represents the nominal project operating point.",
+        "The 8.4 V point represents the fully charged 2S Li-Ion / charger float-voltage condition.",
+        "Final production limits should include ADM1176 behavior in the board operating range plus fixture/DMM uncertainty."
+      ]
+    },
+    {
+      "order": 12,
+      "name": "ADM1176 Overcurrent Protection / Auto-Retry",
+      "status": "defined",
+      "test_conditions": {
+        "vbatt_v": 7.4,
+        "normal_load_a": 0.5,
+        "overload_request_a": 1.2
+      },
+      "purpose": "Verify overcurrent protection, automatic retry, and recovery after the overload condition is removed.",
+      "procedure": [
+        "Power DUT from fixture VBATT at 7.4 V.",
+        "Apply 0.5 A normal load and verify stable operation.",
+        "Apply a 1.2 A overload request.",
+        "Verify the ADM1176 enters current-limit/protection behavior and does not sustain 1.2 A.",
+        "Verify the protected power path switches off while the overload persists.",
+        "Verify the ADM1176-1 performs an automatic retry.",
+        "Remove the overload and return to the normal load condition.",
+        "Verify power, 3.3 V rail, and DUT communication recover."
+      ],
+      "pass_fail_logic": {
+        "pass_if": [
+          "0.5 A normal load remains stable without a protection event.",
+          "1.2 A overload request causes protection behavior rather than sustained 1.2 A delivery.",
+          "Protected output switches off while overload persists.",
+          "Automatic retry is observed.",
+          "DUT recovers after overload removal."
+        ],
+        "fail_if": [
+          "Protection triggers during the 0.5 A normal condition.",
+          "1.2 A remains sustained without a protection response.",
+          "Protected output does not switch off.",
+          "Automatic retry is not observed.",
+          "DUT does not recover after overload removal."
+        ]
+      },
+      "logging": [
+        "vbatt_v",
+        "normal_load_a",
+        "overload_request_a",
+        "measured_current_before_overload_a",
+        "measured_current_during_overload_a",
+        "protection_event_detected",
+        "output_off_detected",
+        "auto_retry_detected",
+        "power_recovered",
+        "communication_recovered",
+        "status"
+      ],
+      "notes": [
+        "The 1.2 A point is intentionally above the approximately 1.0 A nominal current-limit level for R8 = 0.1 ohm.",
+        "Exact timing is logged only as diagnostic information for now and is not a PASS/FAIL criterion.",
+        "Final hardware limits must include resistor tolerance and fixture measurement uncertainty."
+      ]
+    },
+    {
+      "order": 13,
+      "name": "BQ25883 USB Battery Charger Functional Test",
+      "status": "defined",
+      "purpose": "Verify USB-powered 2S Li-Ion charging control, charger status reporting, and transition from active charging toward charge completion using a battery emulator.",
+      "device": "BQ25883",
+      "interface": "I2C",
+      "test_conditions": {
+        "usb_input_v": 5,
+        "initial_battery_emulator_v": 7.4,
+        "full_battery_target_v": 8.4
+      },
+      "procedure": [
+        "Connect the battery emulator and set it to 7.4 V.",
+        "Apply 5.0 V USB input to the charger path.",
+        "Verify BQ25883 I2C communication.",
+        "Read charger configuration and status registers.",
+        "Enable charging if required by the test configuration.",
+        "Verify charging is active and CHRG_STAT reports a valid charging state.",
+        "Log charge current and charger status without applying a fixed current PASS/FAIL limit.",
+        "Move the battery emulator toward 8.4 V.",
+        "Verify the charger transitions toward taper/charge-complete behavior.",
+        "Verify CHRG_STAT reaches the expected near-full/complete state when the simulated termination conditions are satisfied.",
+        "Remove USB input and return the emulator and fixture to a safe state."
+      ],
+      "status_reference": {
+        "100": "Taper-charge CV",
+        "101": "Top-off Timer Charging",
+        "110": "Charge Termination Done",
+        "000": "Not Charging",
+        "001": "Trickle Charge",
+        "010": "Pre-charge",
+        "011": "Fast-charge CC"
+      },
+      "pass_fail_logic": {
+        "pass_if": [
+          "BQ25883 responds over I2C.",
+          "At 7.4 V battery-emulator condition, charging is enabled and a valid charging state is reported.",
+          "Positive charging behavior is observed without charger fault.",
+          "As the battery emulator approaches 8.4 V, charger status transitions toward taper or termination behavior.",
+          "When simulated termination conditions are satisfied, CHRG_STAT reports Charge Termination Done or the expected configured top-off/termination sequence."
+        ],
+        "fail_if": [
+          "BQ25883 does not respond over I2C.",
+          "Charging cannot be enabled under valid input and battery conditions.",
+          "A charger fault is reported during the normal test conditions.",
+          "No valid transition toward taper/termination is observed near the 8.4 V target.",
+          "Charge-complete behavior cannot be reached when the emulator satisfies termination conditions."
+        ]
+      },
+      "current_limit_policy": {
+        "fixed_charge_current_pass_fail_limit_used": false,
+        "reason": "Actual charging current depends on charger configuration and possible input/thermal regulation. Current is logged for diagnostics; a separate production current limit can be added later."
+      },
+      "logging": [
+        "usb_input_voltage_v",
+        "battery_emulator_voltage_v",
+        "i2c_communication_ok",
+        "en_chg_state",
+        "chrg_stat",
+        "charge_current_a",
+        "vbus_status",
+        "charger_fault_status",
+        "termination_reached",
+        "status"
+      ],
+      "notes": [
+        "BQ25883 default charge-voltage setting is 8.40 V for a 2-cell Li-Ion battery.",
+        "Default charging current is 1.50 A, but it is not used here as a fixed PASS/FAIL limit.",
+        "The BQ25883 can report charging phases through CHRG_STAT.",
+        "Charging termination requires voltage/current conditions; the battery emulator must support a controlled simulation of this behavior."
+      ]
+    }
+  ],
+  "result_logging": {
+    "directory": "test_data/",
+    "one_file_per_run": true,
+    "filename": "<SERIAL_NUMBER>_<STATION_ID>_<YYYYMMDD>_<HHMMSS>_<MICROSECONDS>.json",
+    "fields": [
+      "serial_number",
+      "station_id",
+      "operator_id",
+      "timestamp",
+      "station_verified",
+      "station_verification_time",
+      "overall_result",
+      "steps"
+    ],
+    "step_fields": [
+      "step_name",
+      "status",
+      "measured_value",
+      "unit",
+      "limits",
+      "attempt"
+    ]
+  },
+  "cleanup": {
+    "always_run": true,
+    "actions": [
+      "Power OFF DUT",
+      "Return electronic load to safe state",
+      "Reset/release emulator resources",
+      "Save completed result JSON"
+    ]
+  },
+  "sources": [
+    {
+      "name": "PyCubed v0.5 mainboard schematic",
+      "url": "https://pycubed.org/mainboard-v05%203.pdf",
+      "type": "project/manufacturer documentation"
+    },
+    {
+      "name": "Analog Devices ADM1176 datasheet",
+      "url": "https://www.analog.com/media/en/technical-documentation/data-sheets/adm1176.pdf",
+      "type": "component manufacturer datasheet"
+    },
+    {
+      "name": "Texas Instruments TPS54226 datasheet",
+      "url": "https://www.ti.com/lit/ds/symlink/tps54226.pdf",
+      "type": "component manufacturer datasheet"
+    },
+    {
+      "name": "Microchip ATSAMD51J19A",
+      "url": "https://www.microchip.com/en-us/product/ATSAMD51J19A",
+      "type": "component manufacturer documentation"
+    },
+    {
+      "name": "Everspin MR25H40",
+      "url": "https://www.everspin.com/products/series/mr25h40",
+      "type": "component manufacturer documentation"
+    },
+    {
+      "name": "CircuitPython PyCubed v0.5",
+      "url": "https://circuitpython.org/board/pycubed_v05/",
+      "type": "public software distribution documentation"
+    },
+    {
+      "name": "Analog Devices MAX706P/R/S/T datasheet",
+      "url": "https://www.analog.com/media/en/technical-documentation/data-sheets/MAX706AP-MAX708T.pdf",
+      "type": "component manufacturer datasheet",
+      "used_for": [
+        "Watchdog timeout: 1.00 s minimum, 1.6 s typical, 2.25 s maximum",
+        "Supervisory reset timing reference"
+      ]
+    }
+  ],
+  "pending": [
+    "LTC4121 solar charger functional test",
+    "GPS",
+    "Radio",
+    "Final flight firmware programming/verification",
+    "Final TestStand PASS/FAIL/SKIP/RETEST/Cleanup implementation"
+  ]
+}
