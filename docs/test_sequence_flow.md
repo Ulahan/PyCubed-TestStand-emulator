@@ -1,58 +1,47 @@
-# Planned TestStand Sequence Flow
+# Final TestStand Sequence Flow
 
 ```text
 SETUP
   |
-  +--> Initialize Emulator
-  +--> Get Operator ID
-  +--> Get Station ID
-  +--> Read Last Station Verification
+  +--> Initialize Python emulator / fixture interfaces
+  +--> Require Operator ID
+  +--> Read Station ID
+  +--> Check Golden Reference verification state
+  |      +--> same boot session AND age <= 12 h ? --> reuse
+  |      +--> otherwise --> verify Golden Reference
+  |             +--> FAIL --> block DUT tests --> CLEANUP
   |
-  +--> Successful verification already completed today?
-          |
-          +--> YES --> StationVerified = True
-          |              |
-          |              v
-          |            MAIN
-          |
-          +--> NO --> Load Golden Reference
-                       +--> Verify Reference Power
-                       +--> Verify Reference 3.3 V
-                       +--> Verify Reference Boot
-                       +--> Verify Reference Sensor
-                       |
-                       +--> Reference PASS ?
-                               |
-                               +--> YES
-                               |     +--> Save today's successful verification
-                               |     +--> StationVerified = True
-                               |     +--> MAIN
-                               |
-                               +--> NO
-                                     +--> StationVerified = False
-                                     +--> Block DUT testing
-                                     +--> CLEANUP
-
+  +--> Require DUT Serial Number
+  v
 MAIN
   |
-  +--> Get DUT Serial Number
-  +--> Power On
-  +--> Read 3.3 V
-  +--> Boot Test
-  +--> IMU Test
-  |      |
-  |      +--> FAIL -> RETEST allowed -> second attempt
+  +--> 01 Safe Power-Up / Overcurrent
+  +--> 02 3.3 V Rail
+  +--> 03 MCU Detection / SWD
+  +--> 04 Internal Flash / Software Verification
+  +--> 05 MRAM Read/Write
+  +--> 06 microSD Provisioning / Verification
+  +--> 07 BMX160 IMU (one transient retest allowed)
+  +--> 08 ADM1176 Current 125 / 250 / 500 mA
+  +--> 09 External Watchdog Recovery
+  +--> 10 USB Data & USB Power
+  +--> 11 ADM1176 VBATT at 7.4 / 8.4 V
+  +--> 12 ADM1176 Overcurrent Protection / Auto-Retry
+  +--> 13 BQ25883 USB Charger
+  +--> 14 LTC4121 Solar Charger
+  +--> 15 GPS UART / message / 1PPS
+  +--> 16 RFM9x Radio SPI / packet loopback
+  +--> 17 Final Flight Firmware Verification
   |
-  +--> Battery Test
-  |
-  +--> PASS / FAIL / SKIP decisions in TestStand
-  |
+  +--> Any required FAIL => overall FAIL
+  +--> Upstream hard FAIL may SKIP dependent steps; skipped steps are logged
   v
-CLEANUP
-  +--> Power Off
-  +--> Unload Golden Reference if loaded
-  +--> Emulator Cleanup
-  +--> Report
+CLEANUP (always)
+  +--> Power OFF DUT
+  +--> Return electronic load / USB / solar source to safe state
+  +--> Release emulator / fixture resources
+  +--> Save one timestamped JSON result
+  +--> Final report
 ```
 
-The successful station-verification result must persist between DUT runs so the golden reference is not repeated for every unit on the same calendar day.
+Operator change does not invalidate a valid Golden Reference verification. A station/PC reboot does.
