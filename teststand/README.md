@@ -1,24 +1,29 @@
-# TestStand Integration
+# NI TestStand Integration Blueprint
 
-This folder will contain the real NI TestStand sequence after the trial is activated.
+The software side of the project is complete. The remaining native artifact is the `.seq` file, which must be created with NI TestStand Sequence Editor during the planned trial; a `.seq` file is not a text placeholder.
 
-Planned sequence groups:
+## Sequence groups
 
-- Setup
-- Main
-- Cleanup
+### Setup
+- Require Operator ID for every DUT run.
+- Read Station ID.
+- Reuse Golden Reference only within the same station boot session and for at most 12 hours.
+- Reverify after station reboot, 12 hours, suspected malfunction, or fixture/test-equipment repair/replacement.
+- Block DUT testing if Golden Reference verification fails.
+- Require DUT serial number.
 
-## Daily station verification
+### Main
+Implement the 17 steps in `config/PyCubed_Test_Plan_FINAL.json` in order. Use Python Adapter calls into `emulator/pycubed_emulator.py`.
 
-The future TestStand sequence will verify the station with the golden reference once per calendar day.
+### Cleanup
+Always execute cleanup: DUT power off, loads/sources safe, resources released, and one timestamped JSON result saved.
 
-During Setup, TestStand will:
+## TestStand result logic
+- Any required test FAIL => overall FAIL.
+- SKIP is allowed only for dependent steps after an upstream hard failure; it never converts the DUT to PASS.
+- RETEST is allowed only where explicitly defined and every attempt must be logged.
+- Test 17 Final Flight Firmware Verification must PASS before the DUT can receive overall PASS.
 
-1. Check the stored date/result of the latest successful station verification.
-2. Reuse the verification if it was completed successfully today.
-3. Run the golden-reference checks only when there is no successful verification for the current day.
-4. Block DUT testing if the daily station verification fails.
+For pre-trial validation, run:
 
-The verification date/result must be stored persistently so it survives separate DUT sequence runs.
-
-Important: a `.seq` file is not a text placeholder. It should be created and edited with NI TestStand Sequence Editor, then committed here.
+`python -m emulator.sequence_runner --operator OP-001`
