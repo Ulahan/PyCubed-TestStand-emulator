@@ -1,20 +1,38 @@
 {
   "product": "PyCubed v0.5 CubeSat Avionics",
   "station_id": "TS-EMU-01",
-  "default_operator_id": "OP-TRAINING",
+  "operator_id_required_each_run": true,
   "station_verification": {
-    "policy": "once_per_calendar_day",
-    "reuse_successful_verification_for_same_day": true
+    "method": "Golden Reference",
+    "valid_for_hours": 12,
+    "requires_same_boot_session": true,
+    "operator_change_invalidates_verification": false,
+    "reverify_after": [
+      "station reboot",
+      "12 hours",
+      "suspected station malfunction",
+      "fixture/test-equipment repair or replacement"
+    ]
   },
   "limits": {
-    "dut_3v3_min": 3.20,
-    "dut_3v3_max": 3.40,
-    "battery_min": 3.50,
-    "battery_max": 4.20,
-    "reference_3v3_min": 3.25,
-    "reference_3v3_max": 3.35
+    "dut_3v3_min_v": 3.20,
+    "dut_3v3_max_v": 3.40,
+    "reference_3v3_min_v": 3.25,
+    "reference_3v3_max_v": 3.35,
+    "adm1176_vbatt_error_max_percent_project": 5.0,
+    "watchdog_timeout_min_s": 1.0,
+    "watchdog_timeout_max_s": 2.25
+  },
+  "test_points": {
+    "adm1176_current_a": [0.125, 0.250, 0.500],
+    "adm1176_vbatt_v": [7.4, 8.4],
+    "overcurrent_normal_load_a": 0.5,
+    "overcurrent_fault_request_a": 1.2,
+    "usb_charger_input_v": 5.0,
+    "solar_charger_input_v": 12.0
   },
   "retest": {
-    "max_imu_attempts": 2
+    "max_imu_attempts": 2,
+    "max_usb_data_attempts": 2
   }
 }
